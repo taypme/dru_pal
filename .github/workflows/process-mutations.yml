@@ -1,0 +1,57 @@
+name: Process Dru mutations
+on:
+  push:
+    paths:
+      - "bucket_mutations/**"
+      - "mutations/**"
+      - "entities/**"
+      - "entity.json"
+      - "instructions/**"
+      - "INSTRUCTIONS.md"
+      - "scripts/upgrade_entity_types.py"
+      - "scripts/process_bucket_mutations.py"
+      - "scripts/process_mutations.py"
+      - "scripts/rewrite_dru_command.py"
+      - ".github/workflows/process-mutations.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: dru-mutations-main
+  cancel-in-progress: false
+jobs:
+  process:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - run: python3 scripts/rewrite_dru_command.py
+      - run: python3 scripts/upgrade_entity_types.py
+      - run: python3 scripts/process_bucket_mutations.py
+      - run: python3 scripts/process_mutations.py
+      - name: Commit generated Dru state
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- INSTRUCTIONS.md instructions entity.json entity-state.json mutations scripts/process_mutations.py scripts/rewrite_dru_command.py
+          if [ -d bucket_mutations ]; then git add -A -- bucket_mutations; fi
+          if [ -d entities ]; then git add -A -- entities; fi
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Process Dru entity state"
+          for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              if git rebase origin/main; then
+                  if git push origin HEAD:main; then
+                      exit 0
+                  fi
+              else
+                  git rebase --abort || true
+                  exit 1
+              fi
+              sleep $((attempt * 2))
+          done
+          echo "Failed to push generated Dru state after 5 attempts" >&2
+          exit 1
