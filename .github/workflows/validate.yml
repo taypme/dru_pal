@@ -1,0 +1,32 @@
+name: Validate Dru entities
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON and generated state
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.json' -not -path './.git/*' -print0 | while IFS= read -r -d '' file; do python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$file"; done
+          python3 scripts/process_mutations.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('entity.json').read_text())
+          state = json.loads(Path('entity-state.json').read_text())
+          entities = registry['entities']
+          assert len({e['name'].lower() for e in entities}) == len(entities)
+          assert set(state['entities']) == {f"{e['type']}/{e['name']}" for e in entities}
+          assert state['total_rows'] == sum(e['count'] for e in state['entities'].values())
+          for key, item in state['entities'].items():
+              assert item['count'] >= 0
+              if item['type'] != 'trello':
+                  assert item['index_path'].startswith('entities/')
+                  assert len(item['index_blob_sha']) == 40
+          PY

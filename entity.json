@@ -1,0 +1,151 @@
+{
+  "version": 2,
+  "name": "Dru",
+  "description": "A repository-hydrated command system whose typed entities are organized into buckets.",
+  "hydration": {
+    "default_branch": "main",
+    "branch_syntax": "Dru <repository> on <branch>"
+  },
+  "aliases": [
+    {
+      "machine": "pal new",
+      "canonical": "pal create",
+      "type": "permanent"
+    }
+  ],
+  "storage": {
+    "registry_path": "entity.json",
+    "state_path": "entity-state.json",
+    "root": "entities",
+    "bucket_pattern": "entities/{{ type }}/{{ bucket }}",
+    "data_pattern": "entities/{{ type }}/{{ bucket }}/data/{{ encoded_name }}.json",
+    "entity_pattern": "entities/trello/{{ board }}.json",
+    "index_pattern": "entities/{{ type }}/{{ bucket }}/index.json",
+    "pack_pattern": "entities/{{ type }}/{{ bucket }}/pack.json",
+    "mutation_pattern": "mutations/{{ type }}/{{ bucket }}/{{ uuid }}.json",
+    "canonical": "per-row JSON files for Pal and Mate; one aggregate JSON file per Trello board",
+    "generated": [
+      "index.json",
+      "pack.json",
+      "entity-state.json"
+    ]
+  },
+  "global_commands": [
+    {
+      "machine": "dru",
+      "semantic": "When the entire user message is exactly Dru after trimming whitespace, output a Markdown table with columns Type, Bucket, and Rows for every registered entity, sorted by normalized bucket name, using entity-state.json counts."
+    },
+    {
+      "machine": "command",
+      "semantic": "Dru command <command> <semantic> creates or replaces a global command that operates on every bucket."
+    },
+    {
+      "machine": "pull",
+      "semantic": "Refresh the active repository at one exact commit and validate entity.json against entity-state.json.registry_blob_sha."
+    },
+    {
+      "machine": "behavior",
+      "semantic": "Report conversation-only state not recreated by fresh hydration."
+    },
+    {
+      "machine": "mutations",
+      "semantic": "Report pending repository-local and conversation-only mutations grouped by action."
+    },
+    {
+      "machine": "add",
+      "semantic": "Queue a complete add mutation for the addressed bucket of any entity type."
+    },
+    {
+      "machine": "update",
+      "semantic": "Queue an update mutation for the addressed bucket of any entity type."
+    },
+    {
+      "machine": "delete",
+      "semantic": "Queue a remove mutation for the addressed bucket of any entity type."
+    },
+    {
+      "machine": "move",
+      "semantic": "Queue a move mutation between compatible Pal or Mate buckets."
+    },
+    {
+      "machine": "data",
+      "semantic": "Load and render committed data from the addressed bucket of any entity type."
+    },
+    {
+      "machine": "names",
+      "semantic": "List committed names or keys from the addressed bucket of any entity type."
+    },
+    {
+      "machine": "view",
+      "semantic": "Resolve and render one committed entity row from the addressed bucket."
+    },
+    {
+      "machine": "push",
+      "semantic": "Commit pending mutations atomically, process generated state, and refresh."
+    }
+  ],
+  "trello_policy": {
+    "first_class": true,
+    "entity_type": "trello",
+    "path": "entities/trello/{{ board }}.json",
+    "board_id_policy": "Preserve exact external board_id, list_id, and card_id; never synthesize IDs.",
+    "sync": "Mirror current non-archived Trello boards, lists, and cards; remove local board entities for deleted or archived boards and local lists/cards absent from the external board.",
+    "reads": "Trello boards, lists, and cards commands read committed Dru JSON only."
+  },
+  "policies": {
+    "activation": "Only the hydrated repository named by the user is active; never mix repositories or commits.",
+    "empty_template": "Start with zero registered entities and zero rows.",
+    "implicit_add": "When an input starts with a registered bucket name and its next token is not a recognized command, interpret the input according to that bucket type: Pal uses add <name> <value>, Mate appends <value> to the named key, and Trello resolves the board-specific command namespace.",
+    "row_names": "Preserve human-readable UTF-8 names and encode path-dangerous characters deterministically.",
+    "mutation_processing": "Reject malformed mutations, zero-match updates/removes, unknown destinations, and destination name collisions without purging the queue.",
+    "official_plugin": "Dru is not an official ChatGPT plugin and must not require or claim plugin installation."
+  },
+  "entity_types": {
+    "pal": {
+      "description": "A general-purpose JSON bucket.",
+      "concrete": true,
+      "new": "Pal new <bucket>"
+    },
+    "mate": {
+      "description": "An append-only key/value JSON bucket.",
+      "concrete": true,
+      "new": "Mate new <bucket>"
+    },
+    "trello": {
+      "description": "A synchronized Trello board entity.",
+      "concrete": true,
+      "new": "Trello new <board>"
+    }
+  },
+  "entities": [],
+  "bucket_rules": {
+    "case_insensitive_unique_names": true,
+    "commands": {
+      "pal": [
+        "new",
+        "create",
+        "add",
+        "update",
+        "delete",
+        "move",
+        "data",
+        "names",
+        "view"
+      ],
+      "mate": [
+        "new",
+        "create",
+        "data",
+        "names"
+      ],
+      "trello": [
+        "new",
+        "board",
+        "boards",
+        "sync",
+        "lists",
+        "cards"
+      ]
+    }
+  }
+}
