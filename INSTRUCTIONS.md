@@ -104,7 +104,15 @@ synchronization is the operation that contacts Trello.
 ## Mutations and generated state
 
 Ordinary writes queue mutations under
-`mutations/{{ type }}/{{ bucket }}/{{ uuid }}.json`. The processor applies
+`mutations/{{ type }}/{{ bucket }}/{{ uuid }}.json`.
+
+Every mutation file must contain exactly `action`, `selector`, and `json`. For
+`add`, `selector` is null. For `update`, `remove`, and `move`, the canonical
+selector is exactly `{"field":"<field>","regex":"<regular expression>"}`.
+Do not generate shorthand selectors such as `{"name":"^value$"}`. The
+processor accepts that legacy one-key shorthand only for backward compatibility.
+
+The processor applies
 mutations atomically, regenerates indexes, packs, and `entity-state.json`, and
 then removes successfully processed mutation files. It rejects malformed
 mutations, unknown buckets, duplicate bucket names, unsafe paths, and name
