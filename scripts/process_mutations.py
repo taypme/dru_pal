@@ -58,7 +58,7 @@ def load_registry() -> dict[str, dict[str, Any]]:
             raise MutationError("every entity needs string type and name")
         entity_type = item["type"].strip().lower()
         name = item["name"].strip().lower()
-        if entity_type not in {"pal", "mate", "medic", "mind", "trello"} or not SAFE_NAME.fullmatch(name):
+        if entity_type not in {"pal", "mate", "medic", "mind", "heart", "trello"} or not SAFE_NAME.fullmatch(name):
             raise MutationError(f"invalid entity: {entity_type}/{name}")
         if name in names:
             raise MutationError(f"duplicate bucket name across entity types: {name}")
@@ -112,9 +112,7 @@ def selector(value: Any, path: Path) -> tuple[str, re.Pattern[str]]:
     elif len(value) == 1:
         field, expression = next(iter(value.items()))
     else:
-        raise MutationError(
-            f"{relative(path)} selector must contain field and regex"
-        )
+        raise MutationError(f"{relative(path)} selector must contain field and regex")
     if not isinstance(field, str) or not field or not isinstance(expression, str):
         raise MutationError(f"invalid selector in {relative(path)}")
     try:
