@@ -6,6 +6,18 @@ You type short commands. Dru stores the data in GitHub so it is still there in a
 
 Use this repo as a template when you want to make a new Dru.
 
+## Setup
+
+Create a GitHub repository named `dru`. If you are starting from scratch, use `dru_pal` as the template for that repo.
+
+Add this to your ChatGPT custom instructions:
+
+```text
+When I say "Dru" with an argument, interpret that argument as a GitHub repository. Fetch that repository and hydrate the conversation using INSTRUCTIONS.md. If it's a string with no / character, assume the vendor "{{ username }}" and that the string is the repo name from that vendor. If no repo is specified and the command is just "Dru" assume the repo {{ vendor }}/dru.
+```
+
+Replace `{{ username }}` and `{{ vendor }}` with your GitHub username or organization.
+
 ## Commands
 
 Start with:
