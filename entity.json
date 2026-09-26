@@ -57,15 +57,15 @@
     },
     {
       "machine": "update",
-      "semantic": "Queue an update mutation for the addressed bucket of any entity type."
+      "semantic": "Queue an update mutation for the addressed bucket of any entity type. Selectors must use {field, regex}; exact-name updates use field=name with an anchored escaped regex."
     },
     {
       "machine": "delete",
-      "semantic": "Queue a remove mutation for the addressed bucket of any entity type."
+      "semantic": "Queue a remove mutation for the addressed bucket of any entity type. Selectors must use {field, regex}; exact-name removes use field=name with an anchored escaped regex."
     },
     {
       "machine": "move",
-      "semantic": "Queue a move mutation between compatible Pal or Mate buckets."
+      "semantic": "Queue a move mutation between compatible Pal or Mate buckets. Selectors must use {field, regex}; exact-name moves use field=name with an anchored escaped regex."
     },
     {
       "machine": "data",
@@ -98,7 +98,8 @@
     "implicit_add": "When an input starts with a registered bucket name and its next token is not a recognized command, interpret the input according to that bucket type: Pal uses add <name> <value>, Mate appends <value> to the named key, and Trello resolves the board-specific command namespace.",
     "row_names": "Preserve human-readable UTF-8 names and encode path-dangerous characters deterministically.",
     "mutation_processing": "Reject malformed mutations, zero-match updates/removes, unknown destinations, and destination name collisions without purging the queue.",
-    "official_plugin": "Dru is not an official ChatGPT plugin and must not require or claim plugin installation."
+    "official_plugin": "Dru is not an official ChatGPT plugin and must not require or claim plugin installation.",
+    "mutation_selector": "Canonical selectors for update, remove, and move are objects with exactly field and regex. Legacy one-key selectors may be accepted by the processor for backward compatibility but must not be generated."
   },
   "entity_types": {
     "pal": {
