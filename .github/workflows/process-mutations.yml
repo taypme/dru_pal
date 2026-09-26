@@ -2,9 +2,11 @@ name: Process Dru mutations
 on:
   push:
     paths:
+      - "bucket_mutations/**"
       - "mutations/**"
       - "entities/**"
       - "entity.json"
+      - "scripts/process_bucket_mutations.py"
       - "scripts/process_mutations.py"
       - ".github/workflows/process-mutations.yml"
   workflow_dispatch:
@@ -21,13 +23,14 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - run: python3 scripts/process_bucket_mutations.py
       - run: python3 scripts/process_mutations.py
       - name: Commit generated Dru state
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- INSTRUCTIONS.md entity-state.json mutations
+          git add -A -- INSTRUCTIONS.md entity.json entity-state.json bucket_mutations mutations
           if [ -d entities ]; then git add -A -- entities; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Process Dru entity state"
