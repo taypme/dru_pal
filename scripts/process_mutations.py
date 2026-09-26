@@ -58,7 +58,7 @@ def load_registry() -> dict[str, dict[str, Any]]:
             raise MutationError("every entity needs string type and name")
         entity_type = item["type"].strip().lower()
         name = item["name"].strip().lower()
-        if entity_type not in {"pal", "mate", "trello"} or not SAFE_NAME.fullmatch(name):
+        if entity_type not in {"pal", "mate", "medic", "mind", "trello"} or not SAFE_NAME.fullmatch(name):
             raise MutationError(f"invalid entity: {entity_type}/{name}")
         if name in names:
             raise MutationError(f"duplicate bucket name across entity types: {name}")
