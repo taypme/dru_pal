@@ -116,6 +116,16 @@
       "description": "A synchronized Trello board entity.",
       "concrete": true,
       "new": "Trello new <board>"
+    },
+    "medic": {
+      "description": "A medical-domain row-oriented JSON bucket.",
+      "concrete": true,
+      "new": "Medic new <bucket>"
+    },
+    "mind": {
+      "description": "A cognition, psychology, knowledge, and ideas-domain row-oriented JSON bucket.",
+      "concrete": true,
+      "new": "Mind new <bucket>"
     }
   },
   "entities": [],
