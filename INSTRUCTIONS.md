@@ -14,12 +14,13 @@ SHA. Do not fetch row files during hydration. Report the repository, commit,
 typed entities, counts, pending mutations, and capabilities. End a successful
 hydration report with `Dru hydrated.`
 
-The exact bare command `Dru` outputs a Markdown table with `Type`, `Bucket`, and
-`Rows` for every registered entity. Group rows by entity type in the order
-`Pal`, `Mate`, then `Trello`, and alphabetically sort buckets by normalized
-bucket name within each entity-type group. `Dru command <command> '<semantic>'`
-creates or replaces a global command that operates on any bucket. Ordinary
-global commands are invoked without a `Dru` prefix.
+The exact bare command `Dru` outputs one Markdown table for each entity type,
+in the order `Pal`, `Mate`, then `Trello`. Each table contains `Bucket` and
+`Rows` columns and includes only buckets belonging to that entity type.
+Alphabetically sort buckets by normalized bucket name within each table.
+`Dru command <command> '<semantic>'` creates or replaces a global command that
+operates on any bucket. Ordinary global commands are invoked without a `Dru`
+prefix.
 
 ## Entity and bucket model
 
