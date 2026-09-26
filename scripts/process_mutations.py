@@ -105,9 +105,16 @@ def normalize_names(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
 
 
 def selector(value: Any, path: Path) -> tuple[str, re.Pattern[str]]:
-    if not isinstance(value, dict) or set(value) != {"field", "regex"}:
-        raise MutationError(f"{relative(path)} selector must contain field and regex")
-    field, expression = value.get("field"), value.get("regex")
+    if not isinstance(value, dict):
+        raise MutationError(f"{relative(path)} selector must be an object")
+    if set(value) == {"field", "regex"}:
+        field, expression = value.get("field"), value.get("regex")
+    elif len(value) == 1:
+        field, expression = next(iter(value.items()))
+    else:
+        raise MutationError(
+            f"{relative(path)} selector must contain field and regex"
+        )
     if not isinstance(field, str) or not field or not isinstance(expression, str):
         raise MutationError(f"invalid selector in {relative(path)}")
     try:
