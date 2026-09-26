@@ -126,6 +126,11 @@
       "description": "A cognition, psychology, knowledge, and ideas-domain row-oriented JSON bucket.",
       "concrete": true,
       "new": "Mind new <bucket>"
+    },
+    "heart": {
+      "description": "An emotion, attachment, desire, dream, and regret-domain row-oriented JSON bucket.",
+      "concrete": true,
+      "new": "Heart new <bucket>"
     }
   },
   "entities": [],
