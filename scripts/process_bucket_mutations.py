@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "entity.json"
 MUTATIONS_ROOT = ROOT / "bucket_mutations"
-ROW_TYPES = {"pal", "mate", "medic", "mind"}
+ROW_TYPES = {"pal", "mate", "medic", "mind", "heart"}
 
 
 def encode_name(name: str) -> str:
@@ -22,6 +22,7 @@ def ensure_entity_types(registry: dict) -> bool:
     definitions = {
         "medic": {"description": "A medical-domain row-oriented JSON bucket.", "concrete": True, "new": "Medic new <bucket>"},
         "mind": {"description": "A cognition, psychology, knowledge, and ideas-domain row-oriented JSON bucket.", "concrete": True, "new": "Mind new <bucket>"},
+        "heart": {"description": "An emotion, attachment, desire, dream, and regret-domain row-oriented JSON bucket.", "concrete": True, "new": "Heart new <bucket>"},
     }
     for name, definition in definitions.items():
         if types.get(name) != definition:
