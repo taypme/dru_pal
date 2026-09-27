@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Apply mutations and regenerate typed entity read artifacts."""
 from __future__ import annotations
+
 import hashlib
 import json
 import re
@@ -51,6 +52,14 @@ def load_registry() -> dict[str, dict[str, Any]]:
     registry = load_json(REGISTRY_PATH)
     if not isinstance(registry, dict) or not isinstance(registry.get("entities"), list):
         raise MutationError("entity.json must contain an entities list")
+    type_defs = registry.get("entity_types")
+    if not isinstance(type_defs, dict):
+        raise MutationError("entity.json must contain entity_types")
+    allowed_types = {
+        str(name).strip().lower()
+        for name, definition in type_defs.items()
+        if isinstance(definition, dict) and definition.get("concrete") is True
+    }
     result: dict[str, dict[str, Any]] = {}
     names: set[str] = set()
     for item in registry["entities"]:
@@ -58,7 +67,7 @@ def load_registry() -> dict[str, dict[str, Any]]:
             raise MutationError("every entity needs string type and name")
         entity_type = item["type"].strip().lower()
         name = item["name"].strip().lower()
-        if entity_type not in {"pal", "mate", "medic", "mind", "heart", "trello"} or not SAFE_NAME.fullmatch(name):
+        if entity_type not in allowed_types or not SAFE_NAME.fullmatch(name):
             raise MutationError(f"invalid entity: {entity_type}/{name}")
         if name in names:
             raise MutationError(f"duplicate bucket name across entity types: {name}")
@@ -67,7 +76,13 @@ def load_registry() -> dict[str, dict[str, Any]]:
         if entity_type == "trello":
             result[key] = {"type": entity_type, "name": name, "entity_path": safe_path(item["entity_path"], f"entity path for {key}")}
         else:
-            result[key] = {"type": entity_type, "name": name, "data_dir": safe_path(item["data_dir"], f"data path for {key}"), "index_path": safe_path(item["index_path"], f"index path for {key}"), "pack_path": safe_path(item["pack_path"], f"pack path for {key}")}
+            result[key] = {
+                "type": entity_type,
+                "name": name,
+                "data_dir": safe_path(item["data_dir"], f"data path for {key}"),
+                "index_path": safe_path(item["index_path"], f"index path for {key}"),
+                "pack_path": safe_path(item["pack_path"], f"pack path for {key}"),
+            }
     return result
 
 
@@ -85,7 +100,8 @@ def load_rows(data_dir: Path) -> list[dict[str, Any]]:
 
 def generated_name(bucket: str, row: dict[str, Any], ordinal: int) -> str:
     timestamp = re.sub(r"[^a-z0-9]+", "_", str(row.get("timestamp", "")).lower()).strip("_")
-    base = f"{bucket}_{timestamp}" if timestamp else f"{bucket}_{hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:12]}"
+    payload = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    base = f"{bucket}_{timestamp}" if timestamp else f"{bucket}_{hashlib.sha256(payload).hexdigest()[:12]}"
     return base if ordinal == 0 else f"{base}_{ordinal + 1}"
 
 
@@ -129,7 +145,7 @@ def matches(row: dict[str, Any], field: str, pattern: re.Pattern[str]) -> bool:
         value = "null"
     elif isinstance(value, bool):
         value = "true" if value else "false"
-    return value is not None and pattern.search(str(value)) is not None
+    return pattern.search(str(value)) is not None
 
 
 def validate_mutation(path: Path) -> dict[str, Any]:
