@@ -3,38 +3,69 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "entity.json"
 MUTATIONS_ROOT = ROOT / "bucket_mutations"
-ROW_TYPES = {"pal", "mate", "medic", "mind", "heart"}
+SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def encode_name(name: str) -> str:
     return name.replace("%", "%25").replace("/", "%2F").replace("\\", "%5C")
 
 
-def ensure_entity_types(registry: dict) -> bool:
+def row_types(registry: dict) -> set[str]:
+    result = set()
+    for name, definition in registry.get("entity_types", {}).items():
+        if name != "trello" and isinstance(definition, dict) and definition.get("concrete") is True:
+            result.add(str(name).lower())
+    return result
+
+
+def create_entity_type(registry: dict, mutation: dict) -> None:
+    if set(mutation) != {"action", "type", "description"}:
+        raise SystemExit("Dru bucket mutation error: invalid create_type mutation")
+    entity_type = str(mutation["type"]).strip().lower()
+    if not SAFE_NAME.fullmatch(entity_type) or entity_type == "trello":
+        raise SystemExit(f"Dru bucket mutation error: invalid row entity type {entity_type}")
     types = registry.setdefault("entity_types", {})
-    changed = False
-    definitions = {
-        "medic": {"description": "A medical-domain row-oriented JSON bucket.", "concrete": True, "new": "Medic new <bucket>"},
-        "mind": {"description": "A cognition, psychology, knowledge, and ideas-domain row-oriented JSON bucket.", "concrete": True, "new": "Mind new <bucket>"},
-        "heart": {"description": "An emotion, attachment, desire, dream, and regret-domain row-oriented JSON bucket.", "concrete": True, "new": "Heart new <bucket>"},
-    }
-    for name, definition in definitions.items():
-        if types.get(name) != definition:
-            types[name] = definition
-            changed = True
-    return changed
+    if entity_type in types:
+        raise SystemExit(f"Dru bucket mutation error: entity type already exists: {entity_type}")
+    label = entity_type[:1].upper() + entity_type[1:]
+    types[entity_type] = {"description": str(mutation["description"]), "concrete": True, "new": f"{label} new <bucket>"}
 
 
-def migrate_row_bucket(entity: dict, target_type: str) -> None:
+def create_bucket(registry: dict, entities: list, mutation: dict) -> None:
+    allowed = ({"action", "type", "name"}, {"action", "type", "name", "commands"})
+    if set(mutation) not in allowed:
+        raise SystemExit("Dru bucket mutation error: invalid create mutation")
+    entity_type = str(mutation["type"]).strip().lower()
+    name = str(mutation["name"]).strip().lower()
+    if entity_type not in row_types(registry) or not SAFE_NAME.fullmatch(name):
+        raise SystemExit(f"Dru bucket mutation error: invalid bucket {entity_type}/{name}")
+    if any(str(item.get("name", "")).lower() == name for item in entities):
+        raise SystemExit(f"Dru bucket mutation error: bucket name already exists: {name}")
+    target = ROOT / "entities" / entity_type / name
+    data = target / "data"
+    data.mkdir(parents=True, exist_ok=False)
+    (target / "index.json").write_text("[]\n", encoding="utf-8")
+    (target / "pack.json").write_text("[]\n", encoding="utf-8")
+    entity = {"name": name, "data_dir": f"entities/{entity_type}/{name}/data", "index_path": f"entities/{entity_type}/{name}/index.json", "pack_path": f"entities/{entity_type}/{name}/pack.json", "type": entity_type}
+    if "commands" in mutation:
+        if not isinstance(mutation["commands"], list):
+            raise SystemExit("Dru bucket mutation error: commands must be a list")
+        entity["commands"] = mutation["commands"]
+    entities.append(entity)
+
+
+def migrate_row_bucket(registry: dict, entity: dict, target_type: str) -> None:
     source_type = str(entity["type"]).lower()
     name = str(entity["name"]).lower()
-    if source_type not in ROW_TYPES or target_type not in ROW_TYPES:
+    rows = row_types(registry)
+    if source_type not in rows or target_type not in rows:
         raise SystemExit(f"Dru bucket mutation error: unsupported migration {source_type}->{target_type}")
     source_dir = ROOT / "entities" / source_type / name
     target_dir = ROOT / "entities" / target_type / name
@@ -94,40 +125,44 @@ def main() -> None:
     entities = registry.get("entities")
     if not isinstance(entities, list):
         raise SystemExit("Dru bucket mutation error: entity.json must contain an entities list")
-    changed = ensure_entity_types(registry)
     files = sorted(path for path in MUTATIONS_ROOT.glob("*.json") if path.is_file())
     processed = 0
     for path in files:
         mutation = json.loads(path.read_text(encoding="utf-8"))
         action = str(mutation.get("action", "")).strip().lower()
-        entity_type = str(mutation.get("type", "")).strip().lower()
-        name = str(mutation.get("name", "")).strip().lower()
-        matches = [item for item in entities if str(item.get("type", "")).lower() == entity_type and str(item.get("name", "")).lower() == name]
-        if len(matches) != 1:
-            raise SystemExit(f"Dru bucket mutation error: expected exactly one registered {entity_type}/{name}")
-        entity = matches[0]
-        if action == "delete":
-            if set(mutation) != {"action", "type", "name"}:
-                raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
-            entities.remove(entity)
-            target = ROOT / str(entity["entity_path"]) if entity_type == "trello" else ROOT / "entities" / entity_type / name
-            if target.exists():
-                target.unlink() if target.is_file() else shutil.rmtree(target)
-        elif action == "migrate":
-            if set(mutation) != {"action", "type", "name", "target_type"}:
-                raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
-            migrate_row_bucket(entity, str(mutation["target_type"]).strip().lower())
-        elif action == "pal_to_mate":
-            allowed = ({"action", "type", "name"}, {"action", "type", "name", "strip_prefix"})
-            if set(mutation) not in allowed:
-                raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
-            migrate_pal_to_mate(entity, str(mutation.get("strip_prefix", "")))
+        if action == "create_type":
+            create_entity_type(registry, mutation)
+        elif action == "create":
+            create_bucket(registry, entities, mutation)
         else:
-            raise SystemExit(f"Dru bucket mutation error: unsupported action in {path.relative_to(ROOT)}")
+            entity_type = str(mutation.get("type", "")).strip().lower()
+            name = str(mutation.get("name", "")).strip().lower()
+            matches = [item for item in entities if str(item.get("type", "")).lower() == entity_type and str(item.get("name", "")).lower() == name]
+            if len(matches) != 1:
+                raise SystemExit(f"Dru bucket mutation error: expected exactly one registered {entity_type}/{name}")
+            entity = matches[0]
+            if action == "delete":
+                if set(mutation) != {"action", "type", "name"}:
+                    raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
+                entities.remove(entity)
+                target = ROOT / str(entity["entity_path"]) if entity_type == "trello" else ROOT / "entities" / entity_type / name
+                if target.exists():
+                    target.unlink() if target.is_file() else shutil.rmtree(target)
+            elif action == "migrate":
+                if set(mutation) != {"action", "type", "name", "target_type"}:
+                    raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
+                migrate_row_bucket(registry, entity, str(mutation["target_type"]).strip().lower())
+            elif action == "pal_to_mate":
+                allowed = ({"action", "type", "name"}, {"action", "type", "name", "strip_prefix"})
+                if set(mutation) not in allowed:
+                    raise SystemExit(f"Dru bucket mutation error: invalid mutation {path.relative_to(ROOT)}")
+                migrate_pal_to_mate(entity, str(mutation.get("strip_prefix", "")))
+            else:
+                raise SystemExit(f"Dru bucket mutation error: unsupported action in {path.relative_to(ROOT)}")
         path.unlink()
         processed += 1
-        changed = True
-    if changed:
+    if processed:
+        entities.sort(key=lambda item: str(item.get("name", "")).lower())
         REGISTRY_PATH.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"processed {processed} bucket mutation(s)")
 
