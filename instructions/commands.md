@@ -1,6 +1,6 @@
 # Commands
 
-The exact bare command `Dru` outputs one Markdown table for each concrete entity type, in this order: `Pal`, `Mate`, `Medic`, `Mind`, `Heart`, `Spirit`, `Trello`. Each table contains `Bucket` and `Rows`, includes only buckets of that type, and sorts buckets alphabetically by normalized bucket name.
+The exact bare command `Dru` outputs one separate Markdown table for each concrete entity type, in this order: `Pal`, `Mate`, `Medic`, `Mind`, `Heart`, `Spirit`, `Trello`. Never combine multiple entity types into one table. Precede each table with that entity type as a Markdown heading. Each table contains only the columns `Bucket` and `Rows`, includes only buckets of that entity type, and sorts buckets alphabetically by normalized bucket name. Even when an entity type has no registered buckets, preserve the per-entity separation rather than collapsing entity types into a shared table.
 
 `<entity> buckets` outputs one Markdown table with columns `Bucket` and `Rows` for the named concrete entity type. Entity names are case-insensitive. Include only registered buckets whose type matches the requested entity, sort buckets alphabetically by normalized bucket name, and use `entity-state.json` counts. If the entity type is unknown or abstract, report a concise error.
 
