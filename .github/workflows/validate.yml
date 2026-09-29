@@ -28,7 +28,12 @@ jobs:
           assert state['total_rows'] == sum(e['count'] for e in state['entities'].values())
           for key, item in state['entities'].items():
               assert item['count'] >= 0
-              if item['type'] != 'trello':
+              if item['type'] == 'trello':
+                  assert item['entity_path'].startswith('entities/trello/')
+              elif 'index_path' in item:
                   assert item['index_path'].startswith('entities/')
                   assert len(item['index_blob_sha']) == 40
+              else:
+                  assert item['entity_path'].startswith('entities/')
+                  assert len(item['entity_blob_sha']) == 40
           PY
