@@ -1,14 +1,12 @@
 # Dru Pal
 
-Dru Pal is an empty template for a simple ChatGPT data plugin called Dru.
+Dru Pal is the empty template for Dru, a GitHub-backed ChatGPT data system.
 
-You type short commands. Dru stores the data in GitHub so it is still there in a new chat. Git also keeps a history of changes.
-
-Use this repo as a template when you want to make a new Dru.
+The template contains Dru's entity and bucket schema with empty placeholder storage. It contains no user records, medical records, synchronized board contents, or copied data from a working Dru repository.
 
 ## Setup
 
-Create a GitHub repository named `dru`. If you are starting from scratch, use `dru_pal` as the template for that repo.
+Create a GitHub repository named `dru` from this template.
 
 Add this to your ChatGPT custom instructions:
 
@@ -20,17 +18,8 @@ Replace `{{ username }}` and `{{ vendor }}` with your GitHub username or organiz
 
 ## Commands
 
-Start with:
-
 ```text
 Dru
-```
-
-This loads Dru and shows its data groups.
-
-Common commands are:
-
-```text
 Dru pull
 Dru push
 Dru new <entity>
@@ -44,47 +33,24 @@ Dru new <entity>
 <bucket> move <name> <bucket>
 ```
 
-`Dru pull` gets the newest data from GitHub.
-
-`Dru push` saves pending changes and updates Dru.
-
-`Dru new <entity>` adds a new kind of data group.
-
-Commands can also be taught special behavior for a bucket.
-
 ## Entities
 
-An entity is a kind of data. A bucket is a named group inside it.
+- **[Pal](docs/pal.md)** — general-purpose records.
+- **[Mate](docs/mate.md)** — keys with ordered value lists.
+- **[Cluster](docs/cluster.md)** — grouped progressing observation logs.
+- **[Hoard](docs/hoard.md)** — aggregate string collections.
+- **[Medic](docs/medic.md)** — medical-domain records.
+- **[Mind](docs/mind.md)** — cognition, knowledge, and ideas.
+- **[Heart](docs/heart.md)** — emotions, dreams, desires, and regrets.
+- **[Spirit](docs/spirit.md)** — spiritual, religious, faith, and meaning records.
+- **[Trello](docs/trello.md)** — synchronized external boards.
 
-The template includes:
+## Placeholder schema
 
-- **Pal** — normal records.
-- **Mate** — a key with a list of values.
-- **Medic** — medical data.
-- **Mind** — thoughts, knowledge, and ideas.
-- **Heart** — feelings, dreams, wants, and regrets.
-- **Trello** — saved Trello boards, lists, and cards.
-
-You can use these or add another entity with `Dru new <entity>`.
+Dru Pal registers the same bucket names as the working Dru schema, but every placeholder starts empty. Bucket names define structure only; no row values, source metadata, medical contents, personal observations, Trello cards, or other working-repository data are copied into the template.
 
 ## Storage
 
-Dru saves data as JSON in GitHub. The repo is the main copy of the data, not the chat.
+Row-oriented entities use `entities/<type>/<bucket>/data/` with generated `index.json` and `pack.json`. Hoard buckets use one JSON string array. Trello buckets use one board JSON document.
 
-This means the data can:
-
-- stay between chats;
-- be pulled on another computer;
-- be read without ChatGPT;
-- keep a Git history;
-- be restored from older commits.
-
-Dru checks and processes changes before saving its updated state.
-
-## Using the template
-
-Copy this repo, connect ChatGPT to the new repo, and start adding entities and buckets.
-
-The template starts without your personal data. It gives you the command system, storage system, and included entity types.
-
-Dru Pal's purpose is simple: **make it easy to give ChatGPT commands that store data outside the chat.**
+The repository remains the canonical copy of the data. Git provides persistence and history between chats.
