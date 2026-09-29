@@ -95,7 +95,7 @@
   "policies": {
     "activation": "Only the hydrated repository named by the user is active; never mix repositories or commits.",
     "empty_template": "Start with zero registered entities and zero rows.",
-    "implicit_add": "When an input starts with a registered bucket name and its next token is not a recognized command, interpret the input according to that bucket type: Pal uses add <name> <value>, Mate appends <value> to the named key, and Trello resolves the board-specific command namespace.",
+    "implicit_add": "When an input starts with a registered bucket name and its next token is not a recognized command, interpret the input according to that bucket type: Pal uses add <name> <value>, Mate appends <value> to the named key, Cluster uses <name> <intensity> <value> and appends an object to that name's value array, and Trello resolves the board-specific command namespace.",
     "row_names": "Preserve human-readable UTF-8 names and encode path-dangerous characters deterministically.",
     "mutation_processing": "Reject malformed mutations, zero-match updates/removes, unknown destinations, and destination name collisions without purging the queue.",
     "official_plugin": "Dru is not an official ChatGPT plugin and must not require or claim plugin installation.",
@@ -131,6 +131,11 @@
       "description": "An emotion, attachment, desire, dream, and regret-domain row-oriented JSON bucket.",
       "concrete": true,
       "new": "Heart new <bucket>"
+    },
+    "cluster": {
+      "description": "A name-keyed JSON-object log bucket.",
+      "concrete": true,
+      "new": "Cluster new <bucket>"
     }
   },
   "entities": [],
