@@ -1,12 +1,45 @@
 # Dru Pal
 
-Dru Pal is the empty template for Dru, a GitHub-backed ChatGPT data system.
+Dru Pal is the clean starter template for **Dru**, a simple way to give ChatGPT persistent, organized data backed by GitHub.
 
-The template contains Dru's entity and bucket schema with empty placeholder storage. It contains no user records, medical records, synchronized board contents, or copied data from a working Dru repository.
+Instead of keeping important information only inside one conversation, Dru lets you use short commands such as:
 
-## Setup
+```text
+ideas names
+ideas view modular_ui
+ideas add modular_ui Build interface features as replaceable modules
+Dru push
+```
 
-Create a GitHub repository named `dru` from this template.
+The durable copy lives in GitHub, so your information can survive new chats, keep a Git history, and remain readable outside ChatGPT.
+
+> **Dru Pal contains structure, not user data.** The examples in this README and the entity guides are documentation only. They are not inserted into the template.
+
+## The basic idea
+
+Dru organizes information in three levels:
+
+```text
+Dru
+└── Entity        what kind of information this is
+    └── Bucket    a named collection
+        └── Data  the names and values inside that collection
+```
+
+For example:
+
+```text
+Mind
+└── ideas
+    ├── modular_ui
+    └── local_first
+```
+
+You do **not** need to understand JSON or Git internals to use normal Dru commands.
+
+## Quick start
+
+Create a new GitHub repository from this template and name it `dru`.
 
 Add this to your ChatGPT custom instructions:
 
@@ -16,41 +49,227 @@ When I say "Dru" with an argument, interpret that argument as a GitHub repositor
 
 Replace `{{ username }}` and `{{ vendor }}` with your GitHub username or organization.
 
-## Commands
+Then start a conversation with:
 
 ```text
 Dru
-Dru pull
-Dru push
-Dru new <entity>
-<entity> new <bucket>
+```
+
+Dru loads the repository and shows the available entities and starter buckets. They begin empty; as you add information, they become your own persistent data.
+
+## Everyday commands
+
+```text
 <bucket> names
-<bucket> data
 <bucket> view <name>
+<bucket> data
 <bucket> add <name> <value>
 <bucket> update <name> <value>
 <bucket> delete <name>
-<bucket> move <name> <bucket>
+Dru pull
+Dru push
 ```
 
-## Entities
+### See what is in a bucket
 
-- **[Pal](docs/pal.md)** — general-purpose records.
-- **[Mate](docs/mate.md)** — keys with ordered value lists.
-- **[Cluster](docs/cluster.md)** — grouped progressing observation logs.
-- **[Hoard](docs/hoard.md)** — aggregate string collections.
-- **[Medic](docs/medic.md)** — medical-domain records.
-- **[Mind](docs/mind.md)** — cognition, knowledge, and ideas.
-- **[Heart](docs/heart.md)** — emotions, dreams, desires, and regrets.
-- **[Spirit](docs/spirit.md)** — spiritual, religious, faith, and meaning records.
-- **[Trello](docs/trello.md)** — synchronized external boards.
+```text
+ideas names
+```
 
-## Placeholder schema
+Typical output:
 
-Dru Pal registers the same bucket names as the working Dru schema, but every placeholder starts empty. Bucket names define structure only; no row values, source metadata, medical contents, personal observations, Trello cards, or other working-repository data are copied into the template.
+```markdown
+- local_first
+- modular_ui
+```
 
-## Storage
+### Open one item
 
-Row-oriented entities use `entities/<type>/<bucket>/data/` with generated `index.json` and `pack.json`. Hoard buckets use one JSON string array. Trello buckets use one board JSON document.
+```text
+ideas view modular_ui
+```
 
-The repository remains the canonical copy of the data. Git provides persistence and history between chats.
+Typical output:
+
+```markdown
+### modular_ui
+
+Build interface features as replaceable modules
+```
+
+### Save changes
+
+```text
+Dru push
+```
+
+`Dru push` commits pending Dru changes to the repository and refreshes generated state.
+
+Use:
+
+```text
+Dru pull
+```
+
+to refresh from the newest committed repository data.
+
+## Choosing an entity
+
+An **entity** describes the kind of information a bucket contains. Choose the entity whose behavior best matches what you want to store.
+
+| Entity | Think of it as | Good for |
+| --- | --- | --- |
+| **[Pal](docs/pal.md)** | One name → one record | General notes and records |
+| **[Mate](docs/mate.md)** | One name → growing list | Context, grouped notes, accumulated values |
+| **[Cluster](docs/cluster.md)** | One name → observation history | Mood, measurements, intensity, changes over time |
+| **[Hoard](docs/hoard.md)** | A simple collection of strings | Queues, vocabulary, tags, short lists |
+| **[Medic](docs/medic.md)** | Named medical records | Medications, diagnoses, supplements, health documents |
+| **[Mind](docs/mind.md)** | Named cognitive records | Ideas, knowledge, psychology, opinions, reasoning |
+| **[Heart](docs/heart.md)** | Named affective records | Emotions, dreams, desires, love, regret |
+| **[Spirit](docs/spirit.md)** | Named spiritual records | Faith, religion, practices, beliefs, meaning |
+| **[Trello](docs/trello.md)** | A mirrored external board | Trello boards, lists, and cards |
+
+Each guide explains:
+
+- what the entity is for;
+- how its data differs from the other entities;
+- what the stored data looks like;
+- how to add data;
+- what `<bucket> names` should return;
+- how to use `<bucket> view <name>`;
+- what that view should look like for a normal user.
+
+## Creating buckets
+
+Create a bucket by choosing its entity:
+
+```text
+Pal new places
+Mate new notes
+Cluster new focus
+Hoard new groceries
+Mind new ideas
+Heart new dreams
+Spirit new practices
+Medic new supplements
+```
+
+New entity types can also be added with:
+
+```text
+Dru new <entity>
+```
+
+## How the entities differ
+
+The entity types intentionally store information in different ways:
+
+### Pal
+
+A normal named record:
+
+```text
+library → Quiet place to work and read
+```
+
+### Mate
+
+One name with a growing ordered list:
+
+```text
+garden
+├── Buy tomato seeds
+├── Add drip irrigation
+└── Plant basil
+```
+
+### Cluster
+
+One name with a history of timestamped observations:
+
+```text
+coding
+├── intensity 8 → Deep concentration
+└── intensity 5 → More distracted after lunch
+```
+
+### Hoard
+
+A flat collection of strings:
+
+```text
+apples
+coffee
+rice
+```
+
+### Medic, Mind, Heart, and Spirit
+
+These use named records like Pal, but the entity gives the information a clear semantic home so domain-specific behavior can evolve independently.
+
+### Trello
+
+A Trello bucket mirrors a whole board, including lists and cards, while normal reads come from committed Dru data.
+
+## What this template contains
+
+Dru Pal intentionally includes **structure without user content**:
+
+- all nine standard entity types;
+- the current standard bucket placeholders;
+- empty row indexes and packs;
+- empty Hoard arrays;
+- empty Trello board placeholders with no real external IDs;
+- command and mutation processors;
+- generated state tracking;
+- the same user-facing entity documentation as Dru.
+
+It intentionally does **not** include copied:
+
+- personal records;
+- medical records;
+- observations;
+- source-repository metadata;
+- Trello cards;
+- external board, list, or card IDs;
+- working-Dru values.
+
+## Documentation examples are not template data
+
+Examples throughout these docs use harmless sample topics such as places, groceries, projects, ideas, and practices.
+
+For example:
+
+```text
+places add library Quiet place to work
+places names
+places view library
+Dru push
+```
+
+If **you** run those commands and push them, they become data in your repository. Nothing from the examples is added automatically.
+
+## Where the data lives
+
+Dru saves durable data as JSON in the GitHub repository. GitHub is the persistent copy; the conversation is the interface you use to work with it.
+
+That means your data can:
+
+- survive between conversations;
+- keep a Git history of changes;
+- be restored from older commits;
+- be inspected without ChatGPT;
+- be cloned or backed up like a normal repository;
+- be extended with new entity types and commands.
+
+You generally do not need to care about storage details during everyday use. The entity guides explain them visually when you want to understand the differences.
+
+## Dru Pal vs. Dru
+
+**Dru Pal** is the reusable starter template.
+
+**Dru** is what the template becomes once it is being used as a real persistent data repository.
+
+The goal is to keep the two aligned in behavior and documentation while keeping Dru Pal free of a particular user's data.
+
+Dru Pal's goal is simple: **make it easy to start a clean Dru and use persistent structured data through ordinary conversation.**
