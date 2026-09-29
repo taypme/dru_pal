@@ -23,7 +23,7 @@
     "index_pattern": "entities/{{ type }}/{{ bucket }}/index.json",
     "pack_pattern": "entities/{{ type }}/{{ bucket }}/pack.json",
     "mutation_pattern": "mutations/{{ type }}/{{ bucket }}/{{ uuid }}.json",
-    "canonical": "per-row JSON files for row-oriented entities; aggregate arrays for Hoard; one JSON file per Trello board",
+    "canonical": "per-row JSON files for row-oriented entities; one aggregate JSON string array per Hoard bucket; one aggregate JSON file per Trello board",
     "generated": [
       "index.json",
       "pack.json",
@@ -34,6 +34,10 @@
     {
       "machine": "dru",
       "semantic": "When the entire user message is exactly Dru after trimming whitespace, output a Markdown table with columns Type, Bucket, and Rows for every registered entity, sorted by normalized bucket name, using entity-state.json counts."
+    },
+    {
+      "machine": "command",
+      "semantic": "Dru command <command> <semantic> creates or replaces a global command that operates on every bucket."
     },
     {
       "machine": "pull",
@@ -53,27 +57,27 @@
     },
     {
       "machine": "update",
-      "semantic": "Queue an update mutation for the addressed bucket of any entity type."
+      "semantic": "Queue an update mutation for the addressed bucket of any entity type. Selectors must use {field, regex}; exact-name updates use field=name with an anchored escaped regex."
     },
     {
       "machine": "delete",
-      "semantic": "Queue a remove mutation for the addressed bucket of any entity type."
+      "semantic": "Queue a remove mutation for the addressed bucket of any entity type. Selectors must use {field, regex}; exact-name removes use field=name with an anchored escaped regex."
     },
     {
       "machine": "move",
-      "semantic": "Queue a compatible move mutation between buckets."
+      "semantic": "Queue a move mutation between compatible Pal or Mate buckets. Selectors must use {field, regex}; exact-name moves use field=name with an anchored escaped regex."
     },
     {
       "machine": "data",
-      "semantic": "Load and render committed data from the addressed bucket."
+      "semantic": "Load and render committed data from the addressed bucket of any entity type."
     },
     {
       "machine": "names",
-      "semantic": "List committed row names or keys from the addressed bucket."
+      "semantic": "List committed row names or keys from the addressed bucket of any entity type. For grouped logs, these names are the grouping keys; use names rather than categories."
     },
     {
       "machine": "view",
-      "semantic": "Resolve and render one committed entity row."
+      "semantic": "Resolve and render one committed entity row from the addressed bucket."
     },
     {
       "machine": "push",
@@ -90,12 +94,12 @@
   },
   "policies": {
     "activation": "Only the hydrated repository named by the user is active; never mix repositories or commits.",
-    "empty_template": "All registered buckets begin with zero rows or values.",
+    "empty_template": "All registered standard buckets begin with zero rows or values. Documentation examples are illustrative only and must never be inserted as template data.",
     "implicit_add": "When an input starts with a registered bucket name and its next token is not a recognized command, interpret the input according to that bucket type: Pal uses add <name> <value>, Mate appends <value> to the named key, Cluster uses <name> <intensity> <value> and appends an object to that name's value array, and Trello resolves the board-specific command namespace.",
     "row_names": "Preserve human-readable UTF-8 names and encode path-dangerous characters deterministically.",
     "mutation_processing": "Reject malformed mutations, zero-match updates/removes, unknown destinations, and destination name collisions without purging the queue.",
     "official_plugin": "Dru is not an official ChatGPT plugin and must not require or claim plugin installation.",
-    "mutation_selector": "Canonical selectors for update, remove, and move contain field and regex."
+    "mutation_selector": "Canonical selectors for update, remove, and move are objects with exactly field and regex. Legacy one-key selectors may be accepted by the processor for backward compatibility but must not be generated."
   },
   "entity_types": {
     "pal": {
