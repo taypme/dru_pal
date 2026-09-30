@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply Dru row and aggregate mutations and regenerate read artifacts."""
+"""Apply mutations and regenerate typed entity read artifacts."""
 from __future__ import annotations
 
 import hashlib
@@ -14,11 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "entity.json"
 STATE_PATH = ROOT / "entity-state.json"
 MUTATIONS_ROOT = ROOT / "mutations"
+EXPECTED_KEYS = {"action", "selector", "json"}
 SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 MAX_FILENAME_BYTES = 240
 
+
 class MutationError(RuntimeError):
     pass
+
 
 def load_json(path: Path) -> Any:
     try:
@@ -26,45 +29,54 @@ def load_json(path: Path) -> Any:
     except (OSError, json.JSONDecodeError) as exc:
         raise MutationError(f"invalid JSON in {path.relative_to(ROOT)}: {exc}") from exc
 
+
 def relative(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
-def safe_path(value: str) -> Path:
+
+def safe_path(value: str, label: str) -> Path:
     path = Path(value)
     if path.is_absolute() or ".." in path.parts:
-        raise MutationError(f"invalid repository path: {value}")
+        raise MutationError(f"invalid {label}")
     return ROOT / path
+
 
 def encode_name(name: str) -> str:
     return name.replace("%", "%25").replace("/", "%2F").replace("\\", "%5C")
 
+
 def safe_row_name(name: str) -> bool:
     return name not in {"", ".", ".."} and "\x00" not in name and len(encode_name(name).encode("utf-8")) <= MAX_FILENAME_BYTES
 
-def load_registry() -> dict[str, dict[str, Any]]:
-    doc = load_json(REGISTRY_PATH)
-    types = doc.get("entity_types", {})
-    entities = doc.get("entities", [])
-    if not isinstance(types, dict) or not isinstance(entities, list):
-        raise MutationError("entity.json must contain entity_types and entities")
+
+def load_registry() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    registry_doc = load_json(REGISTRY_PATH)
+    if not isinstance(registry_doc, dict) or not isinstance(registry_doc.get("entities"), list):
+        raise MutationError("entity.json must contain an entities list")
+    type_defs = registry_doc.get("entity_types")
+    if not isinstance(type_defs, dict):
+        raise MutationError("entity.json must contain entity_types")
+    allowed_types = {str(name).lower() for name, definition in type_defs.items() if isinstance(definition, dict) and definition.get("concrete") is True}
     result: dict[str, dict[str, Any]] = {}
     names: set[str] = set()
-    for item in entities:
-        entity_type = str(item.get("type", "")).strip().lower()
-        name = str(item.get("name", "")).strip().lower()
-        definition = types.get(entity_type)
-        if not isinstance(definition, dict) or definition.get("concrete") is not True or not SAFE_NAME.fullmatch(name):
-            raise MutationError(f"invalid entity {entity_type}/{name}")
+    for item in registry_doc["entities"]:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not isinstance(item.get("type"), str):
+            raise MutationError("every entity needs string type and name")
+        entity_type = item["type"].strip().lower()
+        name = item["name"].strip().lower()
+        if entity_type not in allowed_types or not SAFE_NAME.fullmatch(name):
+            raise MutationError(f"invalid entity: {entity_type}/{name}")
         if name in names:
-            raise MutationError(f"duplicate bucket name: {name}")
+            raise MutationError(f"duplicate bucket name across entity types: {name}")
         names.add(name)
-        storage = str(definition.get("storage", "rows"))
         key = f"{entity_type}/{name}"
+        storage = str(type_defs.get(entity_type, {}).get("storage", "rows"))
         if entity_type == "trello" or storage == "string_array":
-            result[key] = {"type": entity_type, "name": name, "storage": storage, "entity_path": safe_path(str(item["entity_path"]))}
+            result[key] = {"type": entity_type, "name": name, "storage": storage, "entity_path": safe_path(item["entity_path"], f"entity path for {key}")}
         else:
-            result[key] = {"type": entity_type, "name": name, "storage": "rows", "data_dir": safe_path(str(item["data_dir"])), "index_path": safe_path(str(item["index_path"])), "pack_path": safe_path(str(item["pack_path"]))}
-    return result
+            result[key] = {"type": entity_type, "name": name, "storage": "rows", "data_dir": safe_path(item["data_dir"], f"data path for {key}"), "index_path": safe_path(item["index_path"], f"index path for {key}"), "pack_path": safe_path(item["pack_path"], f"pack path for {key}")}
+    return result, type_defs
+
 
 def load_rows(data_dir: Path) -> list[dict[str, Any]]:
     if not data_dir.exists():
@@ -73,38 +85,166 @@ def load_rows(data_dir: Path) -> list[dict[str, Any]]:
     for path in sorted(data_dir.glob("*.json")):
         row = load_json(path)
         if not isinstance(row, dict):
-            raise MutationError(f"{relative(path)} must contain an object")
+            raise MutationError(f"{relative(path)} must contain a JSON object")
         rows.append(row)
     return rows
 
-def normalize_rows(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+
+def generated_name(bucket: str, row: dict[str, Any], ordinal: int) -> str:
+    timestamp = re.sub(r"[^a-z0-9]+", "_", str(row.get("timestamp", "")).lower()).strip("_")
+    payload = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    base = f"{bucket}_{timestamp}" if timestamp else f"{bucket}_{hashlib.sha256(payload).hexdigest()[:12]}"
+    return base if ordinal == 0 else f"{base}_{ordinal + 1}"
+
+
+def normalize_names(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     used: set[str] = set()
-    timestamp = datetime.now(timezone.utc).isoformat()
     for ordinal, row in enumerate(rows):
         row["type"] = entity["type"]
         name = str(row.get("name", "")).strip()
         if not safe_row_name(name):
-            payload = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            name = f"{entity['name']}_{hashlib.sha256(payload).hexdigest()[:12]}_{ordinal + 1}"
+            name = generated_name(entity["name"], row, ordinal)
         candidate, suffix = name, 2
-        while candidate in used:
+        while candidate in used or not safe_row_name(candidate):
             candidate = f"{name}_{suffix}"
             suffix += 1
         row["name"] = candidate
         used.add(candidate)
-        if entity["type"] == "cluster":
-            raw = row.get("value", [])
-            values = raw if isinstance(raw, list) else [raw]
-            normalized = []
-            for value in values:
-                observation = dict(value) if isinstance(value, dict) else {"value": value}
-                if not isinstance(observation.get("timestamp"), str) or not observation["timestamp"].strip():
-                    observation["timestamp"] = timestamp
-                normalized.append(observation)
-            row["value"] = normalized
+
+
+def normalize_cluster_rows(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    if entity["type"] != "cluster":
+        return
+    timestamp = datetime.now(timezone.utc).isoformat()
+    for row in rows:
+        raw = row.get("value", [])
+        values = raw if isinstance(raw, list) else [raw]
+        normalized = []
+        for value in values:
+            observation = dict(value) if isinstance(value, dict) else {"value": value}
+            if not isinstance(observation.get("timestamp"), str) or not observation["timestamp"].strip():
+                observation["timestamp"] = timestamp
+            normalized.append(observation)
+        row["value"] = normalized
+
+
+def selector(value: Any, path: Path) -> tuple[str, re.Pattern[str]]:
+    if not isinstance(value, dict):
+        raise MutationError(f"{relative(path)} selector must be an object")
+    if set(value) == {"field", "regex"}:
+        field, expression = value.get("field"), value.get("regex")
+    elif len(value) == 1:
+        field, expression = next(iter(value.items()))
+    else:
+        raise MutationError(f"{relative(path)} selector must contain field and regex")
+    if not isinstance(field, str) or not field or not isinstance(expression, str):
+        raise MutationError(f"invalid selector in {relative(path)}")
+    try:
+        return field, re.compile(expression)
+    except re.error as exc:
+        raise MutationError(f"invalid regex in {relative(path)}: {exc}") from exc
+
+
+def matches(row: dict[str, Any], field: str, pattern: re.Pattern[str]) -> bool:
+    value = row.get(field)
+    if isinstance(value, (dict, list)):
+        value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    elif value is None:
+        value = "null"
+    elif isinstance(value, bool):
+        value = "true" if value else "false"
+    return pattern.search(str(value)) is not None
+
+
+def validate_mutation(path: Path) -> dict[str, Any]:
+    mutation = load_json(path)
+    if not isinstance(mutation, dict) or set(mutation) != EXPECTED_KEYS:
+        raise MutationError(f"{relative(path)} must contain exactly action, selector, and json")
+    action = mutation.get("action")
+    if action == "delete":
+        action = "remove"
+        mutation["action"] = action
+    if action == "delete":
+        action = "remove"
+        mutation["action"] = "remove"
+    if action not in {"add", "update", "remove", "move"}:
+        raise MutationError(f"{relative(path)} has an unsupported action")
+    if action == "add" and (mutation.get("selector") is not None or not isinstance(mutation.get("json"), dict)):
+        raise MutationError(f"invalid add mutation in {relative(path)}")
+    if action == "update" and (not isinstance(mutation.get("json"), dict) or not mutation["json"]):
+        raise MutationError(f"invalid update mutation in {relative(path)}")
+    if action == "remove" and mutation.get("json") is not None:
+        raise MutationError(f"remove json must be null in {relative(path)}")
+    if action in {"update", "remove", "move"}:
+        selector(mutation.get("selector"), path)
+    if action == "move" and not isinstance(mutation.get("json"), dict):
+        raise MutationError(f"invalid move mutation in {relative(path)}")
+    return mutation
+
+
+def apply_row_mutation(source: str, rows: dict[str, list[dict[str, Any]]], mutation: dict[str, Any], path: Path, registry: dict[str, dict[str, Any]]) -> None:
+    source_rows = rows[source]
+    if mutation["action"] == "add":
+        source_rows.append(dict(mutation["json"]))
+        return
+    field, pattern = selector(mutation["selector"], path)
+    found = [row for row in source_rows if matches(row, field, pattern)]
+    if not found:
+        raise MutationError(f"{relative(path)} matched zero rows")
+    if mutation["action"] == "remove":
+        rows[source] = [row for row in source_rows if not matches(row, field, pattern)]
+    elif mutation["action"] == "update":
+        for row in found:
+            row.update(mutation["json"])
+    else:
+        payload = mutation["json"]
+        destination = f"{payload.get('type', 'pal').strip().lower()}/{payload.get('bucket', payload.get('pal', '')).strip().lower()}"
+        if destination not in registry or destination == source or destination not in rows:
+            raise MutationError(f"{relative(path)} has an invalid move destination")
+        names = {str(row.get("name")) for row in rows[destination]}
+        moved = {str(row.get("name")) for row in found if row.get("name") is not None}
+        if names & moved:
+            raise MutationError(f"{relative(path)} would collide on {', '.join(sorted(names & moved))}")
+        rows[source] = [row for row in source_rows if not matches(row, field, pattern)]
+        rows[destination].extend(dict(row) for row in found)
+
+
+def apply_hoard_mutation(source: str, values: dict[str, list[str]], mutation: dict[str, Any], path: Path, registry: dict[str, dict[str, Any]]) -> None:
+    current = values[source]
+    action = mutation["action"]
+    if action == "add":
+        name = mutation["json"].get("name")
+        if not isinstance(name, str):
+            raise MutationError(f"{relative(path)} hoard add requires json.name string")
+        current.append(name)
+        return
+    field, pattern = selector(mutation["selector"], path)
+    if field != "name":
+        raise MutationError(f"{relative(path)} hoard selectors must use field=name")
+    indexes = [i for i, value in enumerate(current) if pattern.search(value)]
+    if not indexes:
+        raise MutationError(f"{relative(path)} matched zero hoard values")
+    if action == "remove":
+        values[source] = [value for value in current if not pattern.search(value)]
+    elif action == "update":
+        replacement = mutation["json"].get("name")
+        if not isinstance(replacement, str):
+            raise MutationError(f"{relative(path)} hoard update requires json.name string")
+        for i in indexes:
+            current[i] = replacement
+    else:
+        payload = mutation["json"]
+        destination = f"{payload.get('type', 'hoard').strip().lower()}/{payload.get('bucket', '').strip().lower()}"
+        if destination not in values or destination == source:
+            raise MutationError(f"{relative(path)} has an invalid hoard move destination")
+        moved = [current[i] for i in indexes]
+        values[source] = [value for value in current if not pattern.search(value)]
+        values[destination].extend(moved)
+
 
 def write_bucket(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
-    normalize_rows(entity, rows)
+    normalize_names(entity, rows)
+    normalize_cluster_rows(entity, rows)
     ordered = sorted(rows, key=lambda row: row["name"])
     temporary = entity["data_dir"].with_name(entity["data_dir"].name + ".tmp")
     if temporary.exists():
@@ -120,11 +260,14 @@ def write_bucket(entity: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     temporary.replace(entity["data_dir"])
     entity["index_path"].parent.mkdir(parents=True, exist_ok=True)
     entity["index_path"].write_text(json.dumps(filenames, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    entity["pack_path"].parent.mkdir(parents=True, exist_ok=True)
     entity["pack_path"].write_text(json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+
 
 def blob_sha(path: Path) -> str:
     data = path.read_bytes()
     return hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+
 
 def write_state(registry: dict[str, dict[str, Any]]) -> None:
     state: dict[str, Any] = {"version": 2, "registry_blob_sha": blob_sha(REGISTRY_PATH), "total_rows": 0, "entities": {}}
@@ -140,27 +283,38 @@ def write_state(registry: dict[str, dict[str, Any]]) -> None:
             count = len(value)
             state["entities"][key] = {"type": entity["type"], "bucket": entity["name"], "entity_path": relative(entity["entity_path"]), "count": count, "entity_blob_sha": blob_sha(entity["entity_path"])}
         else:
-            index = load_json(entity["index_path"])
-            count = len(index)
-            state["entities"][key] = {"type": entity["type"], "bucket": entity["name"], "data_dir": relative(entity["data_dir"]), "index_path": relative(entity["index_path"]), "pack_path": relative(entity["pack_path"]), "count": count, "index_blob_sha": blob_sha(entity["index_path"])}
-        state["total_rows"] += count
+            index = json.loads(entity["index_path"].read_text(encoding="utf-8"))
+            state["entities"][key] = {"type": entity["type"], "bucket": entity["name"], "data_dir": relative(entity["data_dir"]), "index_path": relative(entity["index_path"]), "pack_path": relative(entity["pack_path"]), "count": len(index), "index_blob_sha": blob_sha(entity["index_path"])}
+        state["total_rows"] += state["entities"][key]["count"]
     STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
+
 def main() -> None:
-    registry = load_registry()
+    registry, _ = load_registry()
     rows = {key: load_rows(entity["data_dir"]) for key, entity in registry.items() if entity["storage"] == "rows" and entity["type"] != "trello"}
     hoards = {key: load_json(entity["entity_path"]) for key, entity in registry.items() if entity["storage"] == "string_array"}
+    for key, value in hoards.items():
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise MutationError(f"{relative(registry[key]['entity_path'])} must be an array of strings")
     files = sorted(path for path in MUTATIONS_ROOT.glob("*/*/*.json") if path.is_file())
-    if files:
-        raise MutationError("template mutation processing requires hydration before queued mutations are committed")
+    for path in files:
+        source = f"{path.parent.parent.name.lower()}/{path.parent.name.lower()}"
+        mutation = validate_mutation(path)
+        if source in rows:
+            apply_row_mutation(source, rows, mutation, path, registry)
+        elif source in hoards:
+            apply_hoard_mutation(source, hoards, mutation, path, registry)
+        else:
+            raise MutationError(f"{relative(path)} targets an unregistered or unsupported entity")
     for key, bucket_rows in rows.items():
         write_bucket(registry[key], bucket_rows)
     for key, values in hoards.items():
-        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
-            raise MutationError(f"{key} must contain strings")
         registry[key]["entity_path"].write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     write_state(registry)
-    print(f"generated empty/read state for {len(registry)} registered entities")
+    for path in files:
+        path.unlink()
+    print(f"processed {len(files)} mutation(s); {sum(len(items) for items in rows.values())} row(s), {sum(len(items) for items in hoards.values())} hoard value(s) across {len(registry)} entities")
+
 
 if __name__ == "__main__":
     try:
