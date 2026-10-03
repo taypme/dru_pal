@@ -1,6 +1,6 @@
 # Commands
 
-The exact bare command `Dru` outputs one separate Markdown table for each concrete entity type, in this order: `Pal`, `Mate`, `Cluster`, `Hoard`, `Medic`, `Mind`, `Heart`, `Spirit`, `Trello`. Never combine multiple entity types into one table. Precede each table with that entity type as a Markdown heading. Each table contains only the columns `Bucket` and `Rows`, includes only buckets of that entity type, and sorts buckets alphabetically by normalized bucket name. Even when an entity type has no registered buckets, preserve the per-entity separation rather than collapsing entity types into a shared table.
+The exact bare command `Dru` MUST group buckets by concrete entity type. Use this entity order: `Pal`, `Mate`, `Cluster`, `Hoard`, `Medic`, `Mind`, `Heart`, `Spirit`, `Trello`. Output one Markdown heading per entity type followed by one Markdown table containing only `Bucket` and `Rows`. Include only buckets belonging to that entity type, sort them alphabetically by normalized bucket name, and use current `entity-state.json` counts. Preserve the heading and an empty `Bucket | Rows` table for entity types with no registered buckets. NEVER output one combined `Type | Bucket | Rows` table and NEVER mix buckets from different entity types in one table.
 
 `<entity> buckets` outputs one Markdown table with columns `Bucket` and `Rows` for the named concrete entity type. Entity names are case-insensitive. Include only registered buckets whose type matches the requested entity, sort buckets alphabetically by normalized bucket name, and use `entity-state.json` counts. If the entity type is unknown or abstract, report a concise error.
 
@@ -25,6 +25,7 @@ Structural changes queue files under `bucket_mutations/` and run before row muta
 Run locally with:
 
 ```bash
+python3 scripts/rewrite_dru_command.py
 python3 scripts/process_bucket_mutations.py
 python3 scripts/normalize_name_value_schema.py
 python3 scripts/process_append_mutations.py
