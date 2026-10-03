@@ -33,7 +33,7 @@
   "global_commands": [
     {
       "machine": "dru",
-      "semantic": "When the entire user message is exactly Dru after trimming whitespace, output a Markdown table with columns Type, Bucket, and Rows for every registered entity, sorted by normalized bucket name, using entity-state.json counts."
+      "semantic": "When the entire user message is exactly Dru after trimming whitespace, render the current Dru status grouped by concrete entity type. Use entity type order Pal, Mate, Cluster, Hoard, Medic, Mind, Heart, Spirit, Trello. For each entity type, output a Markdown heading with the entity type name followed by a Markdown table containing only Bucket and Rows. Include every registered bucket of that type, sorted alphabetically by normalized bucket name, using entity-state.json counts. Never output one combined Type | Bucket | Rows table and never mix buckets from different entity types. Preserve a heading and an empty Bucket | Rows table even when an entity type has no registered buckets. Also report the active repository, exact commit, total row count, pending mutations, and capabilities, and end with Dru hydrated."
     },
     {
       "machine": "command",
